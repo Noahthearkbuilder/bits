@@ -1,7 +1,6 @@
 # BITS — Private Ledger
 
 A privacy-first cryptocurrency built for resilient mesh networks.
-Operates entirely outside the clearweb and traditional financial infrastructure.
 
 ## What is BITS
 
