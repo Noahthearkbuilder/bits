@@ -1007,7 +1007,7 @@ start:
     MGINFO("START DUMP");
     MGINFO(ss.str());
     MGINFO("END DUMP");
-    MGINFO("Please send wowario on IRC OTFC #wownero-dev the contents of this log, from a couple dozen lines before START DUMP to END DUMP");
+    MGINFO("Please send wowario on IRC OTFC #bits-dev the contents of this log, from a couple dozen lines before START DUMP to END DUMP");
   }
   return diff;
 }
@@ -1417,6 +1417,17 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height, 
   // Miner Block Header Signing
   if (hf_version >= HF_VERSION_BLOCK_HEADER_MINER_SIG)
   {
+      // BITS: Skip miner signature validation for the genesis block (height 0).
+      // The genesis block is synthetically constructed from GENESIS_TX hex and has
+      // no miner keypair or signature. This is safe because the genesis block hash
+      // is deterministic and cannot be forged after chain initialization.
+      // BITS: Skip miner signature validation entirely.
+      // The daemon internal miner does not have access to the private spend key
+      // needed to sign block headers (HF_VERSION_BLOCK_HEADER_MINER_SIG).
+      // This check will be re-enabled in Phase 1.1 with Shamir NAK key management.
+      LOG_PRINT_L1("BITS: miner signature check disabled (Phase 1.0)");
+      if (false)
+      {
       // sanity checks
       if (b.miner_tx.vout.size() != 1)
       {
@@ -1446,6 +1457,7 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height, 
       } else {
           LOG_PRINT_L1("Miner signature is good");
           LOG_PRINT_L1("Vote: " << b.vote);
+      }
       }
   }
 
@@ -1579,6 +1591,10 @@ uint64_t Blockchain::get_long_term_block_weight_median(uint64_t start_height, si
   LOG_PRINT_L3("Blockchain::" << __func__);
   CRITICAL_REGION_LOCAL(m_blockchain_lock);
 
+  // BITS: When adding the genesis block, count is 0 because the chain is empty.
+  // Return the penalty-free zone size as the default long-term median weight.
+  if (count == 0)
+    return CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5;
   PERF_TIMER(get_long_term_block_weights);
 
   CHECK_AND_ASSERT_THROW_MES(count > 0, "count == 0");

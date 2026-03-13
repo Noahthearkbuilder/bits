@@ -71,5 +71,5 @@ target_link_libraries(daemon
     ${Blocks})
 set_property(TARGET daemon
   PROPERTY
-    OUTPUT_NAME "wownerod")
+    OUTPUT_NAME "bitsd")
 install(TARGETS daemon DESTINATION bin)

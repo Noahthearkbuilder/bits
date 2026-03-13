@@ -3102,7 +3102,7 @@ namespace cryptonote
       return true;
     }
 
-    static const char software[] = "wownero";
+    static const char software[] = "bits";
 #ifdef BUILD_TAG
     static const char buildtag[] = BOOST_PP_STRINGIZE(BUILD_TAG);
     static const char subdir[] = "cli";

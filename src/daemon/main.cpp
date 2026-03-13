@@ -45,6 +45,8 @@
 #include "rpc/rpc_args.h"
 #include "daemon/command_line_args.h"
 #include "version.h"
+#include "cryptonote_core/cryptonote_tx_utils.h"
+#include "cryptonote_basic/cryptonote_format_utils.h"
 
 #ifdef STACK_TRACE
 #include "common/stack_trace.h"
@@ -144,6 +146,7 @@ int main(int argc, char const * argv[])
       command_line::add_arg(visible_options, command_line::arg_help);
       command_line::add_arg(visible_options, command_line::arg_version);
       command_line::add_arg(visible_options, daemon_args::arg_os_version);
+      command_line::add_arg(visible_options, daemon_args::arg_print_genesis_tx);
       command_line::add_arg(visible_options, daemon_args::arg_config_file);
 
       // Settings
@@ -190,7 +193,7 @@ int main(int argc, char const * argv[])
 
     if (command_line::get_arg(vm, command_line::arg_help))
     {
-      std::cout << "Wownero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
+      std::cout << "BITS '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL << ENDL;
       std::cout << "Usage: " + std::string{argv[0]} + " [options|settings] [daemon_command...]" << std::endl << std::endl;
       std::cout << visible_options << std::endl;
       return 0;
@@ -199,7 +202,7 @@ int main(int argc, char const * argv[])
     // Monero Version
     if (command_line::get_arg(vm, command_line::arg_version))
     {
-      std::cout << "Wownero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL;
+      std::cout << "BITS '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL;
       return 0;
     }
 
@@ -209,6 +212,58 @@ int main(int argc, char const * argv[])
       std::cout << "OS: " << tools::get_os_version_string() << ENDL;
       return 0;
     }
+    // BITS: Print genesis transaction hex
+    if (command_line::get_arg(vm, daemon_args::arg_print_genesis_tx))
+    {
+      // Construct a genesis coinbase transaction with "Welcome to File City" embedded.
+      // Uses a null (zero) miner address — genesis coinbase is unspendable.
+      cryptonote::account_public_address miner_address = {};
+      cryptonote::transaction tx = {};
+
+      // Embed "Welcome to File City" as extra nonce in the coinbase TX
+      std::string genesis_message = "Welcome to File City";
+      cryptonote::blobdata extra_nonce;
+      extra_nonce.assign(genesis_message.begin(), genesis_message.end());
+
+      // height=0, median_weight=0, already_generated_coins=0, fee=0
+      // hard_fork_version=20 (CURRENT_BLOCK_MAJOR_VERSION)
+      // max_outs=1 (single output for genesis)
+      // Blockchain pointer is NULL — genesis doesn't need chain state
+      bool r = cryptonote::construct_miner_tx(
+        NULL,                                    // no blockchain
+        cryptonote::MAINNET,                     // network type
+        0,                                       // height 0 (genesis)
+        0,                                       // median_weight (unused at height 0)
+        0,                                       // already_generated_coins
+        0,                                       // current_block_weight
+        0,                                       // fee
+        miner_address,                           // null address
+        tx,                                      // output transaction
+        extra_nonce,                             // "Welcome to File City"
+        1,                                       // max_outs
+        CURRENT_BLOCK_MAJOR_VERSION              // hard fork version 20
+      );
+
+      if (!r)
+      {
+        std::cerr << "Failed to construct genesis coinbase transaction" << std::endl;
+        return 1;
+      }
+
+      // Serialize to hex
+      std::string tx_hex = epee::string_tools::buff_to_hex_nodelimer(
+        cryptonote::tx_to_blob(tx)
+      );
+
+      std::cout << "Genesis transaction hex:" << std::endl;
+      std::cout << tx_hex << std::endl;
+      std::cout << std::endl;
+      std::cout << "Paste this into cryptonote_config.h as GENESIS_TX for all three networks." << std::endl;
+      std::cout << "Then recompile and launch the daemon." << std::endl;
+
+      return 0;
+    }
+
 
     std::string config = command_line::get_arg(vm, daemon_args::arg_config_file);
     boost::filesystem::path config_path(config);
@@ -306,7 +361,7 @@ int main(int argc, char const * argv[])
       tools::set_max_concurrency(command_line::get_arg(vm, daemon_args::arg_max_concurrency));
 
     // logging is now set up
-    MGINFO("Wownero '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")");
+    MGINFO("BITS '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")");
 
     // If there are positional options, we're running a daemon command
     {

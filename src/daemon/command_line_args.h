@@ -35,7 +35,7 @@
 
 namespace daemon_args
 {
-  std::string const WINDOWS_SERVICE_NAME = "Wownero Daemon";
+  std::string const WINDOWS_SERVICE_NAME = "BITS Daemon";
 
   const command_line::arg_descriptor<std::string, false, true, 2> arg_config_file = {
     "config-file"
@@ -139,6 +139,13 @@ namespace daemon_args
   const command_line::arg_descriptor<bool> arg_zmq_rpc_disabled = {
     "no-zmq"
   , "Disable ZMQ RPC server"
+  };
+
+
+  const command_line::arg_descriptor<bool> arg_print_genesis_tx = {
+    "print-genesis-tx"
+  , "Print the genesis transaction hex with 'Welcome to File City' embedded, then exit"
+  , false
   };
 
 }  // namespace daemon_args

@@ -1,122 +1,38 @@
+# Build artifacts
+build/
+
+# Backup files from development
+*.ORIGINAL
+*.BACKUP
+*.STEP6A_BACKUP
+*.STEP7A_BACKUP
+*.STEP8B_BACKUP
+*.STEP8_BACKUP
+*.STEP9B_BACKUP
+*.PRE_STEP6C
+*.PRE_STEP6D
+*.STEP7A_BACKUP
+
+# Development scripts (keep locally, not in public repo)
+step4_fixed_reward.py
+step5_lwma40.py
+step6a_hardforks_and_config.py
+step6b_wallet_strings.py
+step6c_broad_rename.py
+step6d_cmake_binaries.py
+step7a_precompile_fixes.py
+step8_genesis_tx.py
+step8b_embed_genesis.py
+apply_config_changes.sh
+
+# Blockchain data
+ark_blockchain/
+
+# Wallet files
+*.keys
+*.wallet
+testnet_wallet*
+
+# OS
 .DS_Store
-/doc
-/build
-/tags
-log/
-
-# vim swap files
-*.swp
-*.swo
-TAGS
-!TAGS/
-tags
-!tags/
-gtags.files
-GTAGS
-GRTAGS
-GPATH
-cscope.files
-cscope.out
-cscope.in.out
-cscope.po.out
-
-external/miniupnpc/Makefile
-miniupnpcstrings.h
-version/
-ClangBuildAnalyzerSession.txt
-
-# gitian
-contrib/gitian/builder/
-contrib/gitian/docker/
-contrib/gitian/sigs/
-
-# Created by https://www.gitignore.io
-
-### C++ ###
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-
-### CMake ###
-CMakeCache.txt
-CMakeFiles
-cmake_install.cmake
-install_manifest.txt
-cmake-build-debug/
-
-### Linux ###
-*~
-
-# KDE directory preferences
-.directory
-
-### VSCode ###
-.vscode/
-
-### Eclipse ###
-*.pydevproject
-.metadata
-.gradle
-bin/
-tmp/
-*.tmp
-*.bak
-*.swp
-*~.nib
-local.properties
-.settings/
-.loadpath
-
-# External tool builders
-.externalToolBuilders/
-
-# Locally stored "Eclipse launch configurations"
-*.launch
-
-# CDT-specific
-.cproject
-
-# PDT-specific
-.buildpath
-
-# Netbeans-specific
-nbproject
-
-# sbteclipse plugin
-.target
-
-# TeXlipse plugin
-.texlipse
-.idea/
-
-/testnet
-
-__pycache__/
-*.pyc
-*.log
+Thumbs.db

@@ -411,39 +411,135 @@ namespace cryptonote {
     return  next_D;
   }
 
+  // ===================================================================
+  // BITS LWMA-40 Difficulty Algorithm
+  // Based on Zawy's LWMA-1 (MIT License, 2017-2018)
+  // https://github.com/zawy12/difficulty-algorithms/issues/3
+  //
+  // Pythagorean triple (9, 40, 41):
+  //   N  = 40  (window size, Leg B)
+  //   L  = 41  (damping factor, Hypotenuse C)
+  //   T  = 400 (target solvetime in seconds, Leg B * 10)
+  //
+  // Formula:
+  //   weighted_solvetimes = sum( solvetime_i * i ) for i=1..N
+  //   next_diff = avg_diff * T * N * (N+1)^2 / (2 * L * weighted_solvetimes)
+  //
+  // Solvetime clamp: [0, 6T] (0 to 2400 seconds)
+  // Minimum difficulty: 1
+  // Emergency: if last 5 blocks ALL hit 6T clamp, divide result by 4
+  // ===================================================================
   difficulty_type next_difficulty_v6(std::vector<uint64_t> timestamps, std::vector<difficulty_type> cumulative_difficulties, size_t target_seconds) {
-    if(timestamps.size() > DIFFICULTY_WINDOW_V3)
-    {
-        timestamps.resize(DIFFICULTY_WINDOW_V3);
-        cumulative_difficulties.resize(DIFFICULTY_WINDOW_V3);
+
+    const uint64_t T = static_cast<uint64_t>(target_seconds);
+    const uint64_t N = DIFFICULTY_WINDOW_V3 - 1;  // 41 - 1 = 40
+    const uint64_t L = DIFFICULTY_WINDOW_V3;       // 41 (damping factor)
+
+    // Sanity: need at least N+1 data points (timestamps[0]..timestamps[N])
+    if (timestamps.size() < 2) {
+      return 1;
     }
-    size_t length = timestamps.size();
-    assert(length == cumulative_difficulties.size());
-    if (length <= 1) {
-        return 1;
+
+    // Trim to N+1 entries if we received more
+    if (timestamps.size() > N + 1) {
+      timestamps.resize(N + 1);
+      cumulative_difficulties.resize(N + 1);
     }
-    static_assert(DIFFICULTY_WINDOW_V3 >= 2, "Window is too small");
-    assert(length <= DIFFICULTY_WINDOW_V3);
-    sort(timestamps.begin(), timestamps.end());
-    size_t cut_begin, cut_end;
-    static_assert(2 * DIFFICULTY_CUT_V2 <= DIFFICULTY_WINDOW_V3 - 2, "Cut length is too large");
-    if (length <= DIFFICULTY_WINDOW_V3 - 2 * DIFFICULTY_CUT_V2) {
-        cut_begin = 0;
-        cut_end = length;
-    } else {
-        cut_begin = (length - (DIFFICULTY_WINDOW_V3 - 2 * DIFFICULTY_CUT_V2) + 1) / 2;
-        cut_end = cut_begin + (DIFFICULTY_WINDOW_V3 - 2 * DIFFICULTY_CUT_V2);
+
+    const uint64_t n = timestamps.size() - 1;  // actual usable window (may be < N during early blocks)
+
+    assert(timestamps.size() == cumulative_difficulties.size());
+
+    // Calculate weighted solvetimes and detect emergency condition
+    // Emergency: if the last 5 blocks ALL had solvetimes clamped to 6T
+    uint64_t weighted_solvetimes = 0;
+    uint64_t emergency_count = 0;
+    const uint64_t max_solvetime = 6 * T;  // 2400 seconds
+
+    for (uint64_t i = 1; i <= n; i++) {
+      uint64_t solvetime;
+
+      // Prevent underflow from out-of-order timestamps
+      if (timestamps[i] > timestamps[i - 1]) {
+        solvetime = timestamps[i] - timestamps[i - 1];
+      } else {
+        solvetime = 0;
+      }
+
+      // Clamp solvetime to [0, 6T]
+      if (solvetime > max_solvetime) {
+        solvetime = max_solvetime;
+      }
+
+      weighted_solvetimes += solvetime * i;
+
+      // Track if this block hit the 6T clamp (for emergency detection)
+      // Only check the last 5 blocks
+      if (i > n - 5) {
+        uint64_t raw_solvetime;
+        if (timestamps[i] > timestamps[i - 1]) {
+          raw_solvetime = timestamps[i] - timestamps[i - 1];
+        } else {
+          raw_solvetime = 0;
+        }
+        if (raw_solvetime >= max_solvetime) {
+          emergency_count++;
+        }
+      }
     }
-    assert(/*cut_begin >= 0 &&*/ cut_begin + 2 <= cut_end && cut_end <= length);
-    uint64_t time_span = timestamps[cut_end - 1] - timestamps[cut_begin];
-    if (time_span == 0) {
-        time_span = 1;
+
+    // Prevent division by zero
+    if (weighted_solvetimes == 0) {
+      weighted_solvetimes = 1;
     }
-    difficulty_type total_work = cumulative_difficulties[cut_end - 1] - cumulative_difficulties[cut_begin];
-    assert(total_work > 0);
-    boost::multiprecision::uint256_t res =  (boost::multiprecision::uint256_t(total_work) * target_seconds + time_span - 1) / time_span;
-    if(res > max128bit)
-        return 0; // to behave like previous implementation, may be better return max128bit?
-    return res.convert_to<difficulty_type>();
+
+    // Average difficulty over the window
+    difficulty_type avg_difficulty = (cumulative_difficulties[n] - cumulative_difficulties[0]) / n;
+
+    // Ensure avg_difficulty is at least 1
+    if (avg_difficulty < 1) {
+      avg_difficulty = 1;
+    }
+
+    // LWMA formula using 256-bit arithmetic to prevent overflow:
+    //   next_diff = avg_diff * T * n * (n+1)^2 / (2 * L * weighted_solvetimes)
+    //
+    // Where n*(n+1)^2 / (2*L) is the normalization factor.
+    // For full window (n=40, L=41):
+    //   40 * 41^2 / (2 * 41) = 40 * 41 / 2 = 820
+    //   sum_weights = n*(n+1)/2 = 820
+    //   So: next_diff = avg_diff * T * sum_weights * (n+1) / (L * weighted_solvetimes)
+    //
+    // Equivalent simplified form:
+    //   numerator   = avg_diff * T * n * (n+1)^2
+    //   denominator = 2 * L * weighted_solvetimes
+
+    boost::multiprecision::uint256_t numerator =
+      boost::multiprecision::uint256_t(avg_difficulty) *
+      T * n * (n + 1) * (n + 1);
+
+    boost::multiprecision::uint256_t denominator =
+      boost::multiprecision::uint256_t(2) * L * weighted_solvetimes;
+
+    boost::multiprecision::uint256_t next_diff = numerator / denominator;
+
+    // Emergency difficulty reduction:
+    // If the last 5 blocks ALL hit the 6T solvetime clamp,
+    // the network has lost significant hashrate. Divide difficulty by 4.
+    if (n >= 5 && emergency_count >= 5) {
+      next_diff /= 4;
+    }
+
+    // Enforce minimum difficulty of 1
+    if (next_diff < 1) {
+      next_diff = 1;
+    }
+
+    // Clamp to 128-bit max (difficulty_type is uint128_t)
+    if (next_diff > max128bit) {
+      return max128bit.convert_to<difficulty_type>();
+    }
+
+    return next_diff.convert_to<difficulty_type>();
   }
 }

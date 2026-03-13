@@ -32,29 +32,23 @@
 #define MONERO_DEFAULT_LOG_CATEGORY "blockchain.hardforks"
 
 const hardfork_t mainnet_hard_forks[] = {
-  { 7, 1, 0, 1519605000 },
-  { 8, 6969, 0, 1524214739 },
-  { 9, 53666, 0, 1538689773 },
-  { 10, 63469, 0, 1541700352 },
-  { 11, 81769, 0, 1549238400 },
-  { 12, 82069, 0, 1549318761 },
-  { 13, 114969, 0, 1559292691 },
-  { 14, 115257, 0, 1559292774 },
-  { 15, 160777, 0, 1573280497 },
-  { 16, 253999, 0, 1600576508 },
-  { 17, 254287, 0, 1600576524 },
-  { 18, 331170, 0, 1623245591 },
-  { 19, 331458, 0, 1624793373 },
-  { 20, 514000, 0, 1677222289 },
+  // BITS: Start at hardfork version 20 from genesis.
+  // This routes all blocks to next_difficulty_v6 (LWMA-40)
+  // and enables all modern features (view tags, BP+, CLSAG, etc.)
+  { 20, 0, 0, 0 },
 };
 const size_t num_mainnet_hard_forks = sizeof(mainnet_hard_forks) / sizeof(mainnet_hard_forks[0]);
 const uint64_t mainnet_hard_fork_version_1_till = 0;
 
 const hardfork_t testnet_hard_forks[] = {
+  // BITS testnet: same as mainnet, version 20 from genesis
+  { 20, 0, 0, 0 },
 };
 const size_t num_testnet_hard_forks = sizeof(testnet_hard_forks) / sizeof(testnet_hard_forks[0]);
 const uint64_t testnet_hard_fork_version_1_till = 0;
 
 const hardfork_t stagenet_hard_forks[] = {
+  // BITS stagenet: same as mainnet, version 20 from genesis
+  { 20, 0, 0, 0 },
 };
 const size_t num_stagenet_hard_forks = sizeof(stagenet_hard_forks) / sizeof(stagenet_hard_forks[0]);
