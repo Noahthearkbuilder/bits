@@ -75,11 +75,10 @@ namespace cryptonote
     LOG_PRINT_L2("destinations include " << num_stdaddresses << " standard addresses and " << num_subaddresses << " subaddresses");
   }
   //---------------------------------------------------------------
-  bool construct_miner_tx(const Blockchain *pb, network_type m_nettype, size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
+    bool construct_miner_tx(const Blockchain *pb, network_type m_nettype, size_t height, size_t median_weight, uint64_t already_generated_coins, size_t current_block_weight, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
-
     keypair txkey = keypair::generate(hw::get_device("default"));
     add_tx_pub_key_to_extra(tx, txkey.pub);
     if(!extra_nonce.empty())
@@ -87,22 +86,49 @@ namespace cryptonote
         return false;
     if (!sort_tx_extra(tx.extra, tx.extra))
       return false;
-
     txin_gen in;
     in.height = height;
-
     uint64_t block_reward;
     if(!get_block_reward(median_weight, current_block_weight, already_generated_coins, block_reward, hard_fork_version))
     {
       LOG_PRINT_L0("Block is too big");
       return false;
     }
-
 #if defined(DEBUG_CREATE_BLOCK_TEMPLATE)
     LOG_PRINT_L1("Creating block template: reward " << block_reward <<
       ", fee " << fee);
 #endif
-    block_reward += fee;
+
+    // BITS fee burn mechanism (9, 40, 41) triple:
+    // Block reward (base_reward): 100% to miner, never burned.
+    // Transaction fees only are split:
+    //   miner_fee_share = fee * 40 / 49
+    //   burn_amount     = fee - miner_fee_share  (destroyed by omission, never a UTXO)
+    // Denominator 49 = 40 (miner leg) + 9 (burn leg).
+    // Integer arithmetic throughout. Intermediate cast to uint128 prevents overflow
+    // even at maximum fee values. burn_amount uses subtraction not division to
+    // ensure miner_fee_share + burn_amount == fee exactly with no rounding loss.
+    uint64_t miner_fee_share;
+    uint64_t burn_amount;
+    if (fee > 0)
+    {
+      miner_fee_share = (uint64_t)((__uint128_t)fee * 40 / 49);
+      burn_amount     = fee - miner_fee_share;
+    }
+    else
+    {
+      miner_fee_share = 0;
+      burn_amount     = 0;
+    }
+
+    // miner receives: base block reward + their share of fees only.
+    // burn_amount is destroyed here by never being added to any output.
+    block_reward += miner_fee_share;
+
+    LOG_PRINT_L1("BITS miner tx: base_reward=" << (block_reward - miner_fee_share)
+      << " miner_fee_share=" << miner_fee_share
+      << " burn_amount=" << burn_amount
+      << " total_to_miner=" << block_reward);
 
     // from hard fork 2, we cut out the low significant digits. This makes the tx smaller, and
     // keeps the paid amount almost the same. The unpaid remainder gets pushed back to the
@@ -113,12 +139,10 @@ namespace cryptonote
     if (hard_fork_version >= 2 && hard_fork_version < 4) {
       block_reward = block_reward - block_reward % ::config::BASE_REWARD_CLAMP_THRESHOLD;
     }
-
     std::vector<uint64_t> out_amounts;
     decompose_amount_into_digits(block_reward, hard_fork_version >= 2 ? 0 : ::config::DEFAULT_DUST_THRESHOLD,
       [&out_amounts](uint64_t a_chunk) { out_amounts.push_back(a_chunk); },
       [&out_amounts](uint64_t a_dust) { out_amounts.push_back(a_dust); });
-
     CHECK_AND_ASSERT_MES(1 <= max_outs, false, "max_out must be non-zero");
     if (height == 0 || hard_fork_version >= 4)
     {
@@ -137,7 +161,6 @@ namespace cryptonote
     {
       CHECK_AND_ASSERT_MES(max_outs >= out_amounts.size(), false, "max_out exceeded");
     }
-
     uint64_t summary_amounts = 0;
     for (size_t no = 0; no < out_amounts.size(); no++)
     {
@@ -145,31 +168,25 @@ namespace cryptonote
       crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
       bool r = crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
       CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << miner_address.m_view_public_key << ", " << txkey.sec << ")");
-
       r = crypto::derive_public_key(derivation, no, miner_address.m_spend_public_key, out_eph_public_key);
       CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << no << ", "<< miner_address.m_spend_public_key << ")");
-
       uint64_t amount = out_amounts[no];
       summary_amounts += amount;
-
       bool use_view_tags = hard_fork_version >= HF_VERSION_VIEW_TAGS;
       crypto::view_tag view_tag;
       if (use_view_tags)
         crypto::derive_view_tag(derivation, no, view_tag);
-
       tx_out out;
       cryptonote::set_tx_out(amount, out_eph_public_key, use_view_tags, view_tag, out);
-
       tx.vout.push_back(out);
     }
-
+    // summary_amounts must equal block_reward which is base_reward + miner_fee_share.
+    // burn_amount was intentionally excluded and is destroyed.
     CHECK_AND_ASSERT_MES(summary_amounts == block_reward, false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal block_reward = " << block_reward);
-
     if (hard_fork_version >= 4)
       tx.version = 2;
     else
       tx.version = 1;
-
     //lock
     if (hard_fork_version >= HF_VERSION_FIXED_UNLOCK)
     {
@@ -186,9 +203,7 @@ namespace cryptonote
       tx.unlock_time = height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
     }
     tx.vin.push_back(in);
-
     tx.invalidate_hashes();
-
     //LOG_PRINT("MINER_TX generated ok, block_reward=" << print_money(block_reward) << "("  << print_money(block_reward - fee) << "+" << print_money(fee)
     //  << "), current_block_size=" << current_block_size << ", already_generated_coins=" << already_generated_coins << ", tx_id=" << get_transaction_hash(tx), LOG_LEVEL_2);
     return true;

@@ -1417,16 +1417,14 @@ bool Blockchain::prevalidate_miner_transaction(const block& b, uint64_t height, 
   // Miner Block Header Signing
   if (hf_version >= HF_VERSION_BLOCK_HEADER_MINER_SIG)
   {
-      // BITS: Skip miner signature validation for the genesis block (height 0).
-      // The genesis block is synthetically constructed from GENESIS_TX hex and has
-      // no miner keypair or signature. This is safe because the genesis block hash
-      // is deterministic and cannot be forged after chain initialization.
-      // BITS: Skip miner signature validation entirely.
-      // The daemon internal miner does not have access to the private spend key
-      // needed to sign block headers (HF_VERSION_BLOCK_HEADER_MINER_SIG).
-      // This check will be re-enabled in Phase 1.1 with Shamir NAK key management.
-      LOG_PRINT_L1("BITS: miner signature check disabled (Phase 1.0)");
-      if (false)
+      // BITS: Skip signature check for genesis block only.
+      // Genesis block is constructed from hardcoded TX hex and has no miner keypair.
+      // All blocks at height >= 1 must have a valid miner signature.
+      if (height == 0)
+      {
+          LOG_PRINT_L1("BITS: skipping miner signature check for genesis block");
+      }
+      else
       {
       // sanity checks
       if (b.miner_tx.vout.size() != 1)
@@ -3469,7 +3467,7 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
     size_t n_unmixable = 0, n_mixable = 0;
     size_t min_actual_mixin = std::numeric_limits<size_t>::max();
     size_t max_actual_mixin = 0;
-    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_21 ? 21 : 7;
+    const size_t min_mixin = hf_version >= HF_VERSION_MIN_MIXIN_11 ? 11 : 7;
     for (const auto& txin : tx.vin)
     {
       // non txin_to_key inputs will be rejected below
@@ -3514,10 +3512,9 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
 
     // The only circumstance where ring sizes less than expected are
     // allowed is when spending unmixable non-RCT outputs in the chain.
-    // Caveat: at HF_VERSION_MIN_MIXIN_15, temporarily allow ring sizes
-    // of 11 to allow a grace period in the transition to larger ring size.
-    if (min_actual_mixin < min_mixin && !(hf_version == HF_VERSION_MIN_MIXIN_21 && min_actual_mixin == 7))
-    {
+    // BITS: No grace period. Ring size 12 enforced from genesis at HF v20.
+      if (min_actual_mixin < min_mixin)
+      {
       if (n_unmixable == 0)
       {
         MERROR_VER("Tx " << get_transaction_hash(tx) << " has too low ring size (" << (min_actual_mixin + 1) << "), and no unmixable inputs");
@@ -3530,11 +3527,15 @@ bool Blockchain::check_tx_inputs(transaction& tx, tx_verification_context &tvc, 
         tvc.m_low_mixin = true;
         return false;
       }
-    } else if ((hf_version > HF_VERSION_MIN_MIXIN_21 && min_actual_mixin > 21)
-      || (hf_version == HF_VERSION_MIN_MIXIN_21 && min_actual_mixin != 21 && min_actual_mixin != 7) // grace period to allow either 15 or 10
-      || (hf_version < HF_VERSION_MIN_MIXIN_21 && hf_version >= HF_VERSION_MIN_MIXIN_7+2 && min_actual_mixin > 7)
+    } else if ((hf_version >= HF_VERSION_MIN_MIXIN_11 && min_actual_mixin > 11)
+      || (hf_version < HF_VERSION_MIN_MIXIN_11 && hf_version >= HF_VERSION_MIN_MIXIN_7+2 && min_actual_mixin > 7)
       || ((hf_version == HF_VERSION_MIN_MIXIN_7 || hf_version == HF_VERSION_MIN_MIXIN_7+1) && min_actual_mixin != 7)
     )
+    {
+      MERROR_VER("Tx " << get_transaction_hash(tx) << " has invalid ring size (" << (min_actual_mixin + 1) << "), it should be " << (min_mixin + 1));
+      tvc.m_low_mixin = true;
+      return false;
+    }
     {
       MERROR_VER("Tx " << get_transaction_hash(tx) << " has invalid ring size (" << (min_actual_mixin + 1) << "), it should be " << (min_mixin + 1));
       tvc.m_low_mixin = true;

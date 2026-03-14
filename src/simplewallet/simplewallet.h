@@ -53,7 +53,9 @@
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
 // Hardcode Monero's donation address (see #1447)
-constexpr const char MONERO_DONATION_ADDR[] = "Wo3MWeKwtA918DU4c69hVSNgejdWFCRCuWjShRY66mJkU2Hv58eygJWDJS1MNa2Ge5M1WjUkGHuLqHkweDxwZZU42d16v94mP";
+// BITS: Donation address disabled until mainnet launch.
+// Replace with a real BITS mainnet address after genesis block is mined.
+constexpr const char MONERO_DONATION_ADDR[] = "";
 
 /*!
  * \namespace cryptonote

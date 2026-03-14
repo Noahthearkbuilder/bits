@@ -257,7 +257,7 @@ struct options {
   const command_line::arg_descriptor<bool> untrusted_daemon = {"untrusted-daemon", tools::wallet2::tr("Disable commands which rely on a trusted daemon"), false};
   const command_line::arg_descriptor<std::string> password = {"password", tools::wallet2::tr("Wallet password (escape/quote as needed)"), "", true};
   const command_line::arg_descriptor<std::string> password_file = wallet_args::arg_password_file();
-  const command_line::arg_descriptor<int> daemon_port = {"daemon-port", tools::wallet2::tr("Use daemon instance at port <arg> instead of 18081"), 0};
+  const command_line::arg_descriptor<int> daemon_port = {"daemon-port", tools::wallet2::tr("Use daemon instance at port <arg> instead of 14401"), 0};
   const command_line::arg_descriptor<std::string> daemon_login = {"daemon-login", tools::wallet2::tr("Specify username[:password] for daemon RPC client"), "", true};
   const command_line::arg_descriptor<std::string> daemon_ssl = {"daemon-ssl", tools::wallet2::tr("Enable SSL on daemon RPC connections: enabled|disabled|autodetect"), "autodetect"};
   const command_line::arg_descriptor<std::string> daemon_ssl_private_key = {"daemon-ssl-private-key", tools::wallet2::tr("Path to a PEM format private key"), ""};
@@ -8549,8 +8549,8 @@ int wallet2::get_fee_algorithm()
 //------------------------------------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_min_ring_size()
 {
-  if (use_fork_rules(HF_VERSION_MIN_MIXIN_21, 0))
-    return 22;
+  if (use_fork_rules(HF_VERSION_MIN_MIXIN_11, 0))
+    return 12;
   if (use_fork_rules(7, 10))
     return 8;
   return 0;
@@ -8558,8 +8558,8 @@ uint64_t wallet2::get_min_ring_size()
 //------------------------------------------------------------------------------------------------------------------------------
 uint64_t wallet2::get_max_ring_size()
 {
-  if (use_fork_rules(HF_VERSION_MIN_MIXIN_21, 0))
-    return 22;
+  if (use_fork_rules(HF_VERSION_MIN_MIXIN_11, 0))
+    return 12;
   if (use_fork_rules(7, 10))
     return 8;
   return 0;

@@ -2336,7 +2336,7 @@ bool simple_wallet::welcome(const std::vector<std::string> &args)
   message_writer() << tr("Flaws in BITS may be discovered in the future, and attacks may be developed to peek under some");
   message_writer() << tr("of the layers of privacy BITS provides. Be safe and practice defense in depth.");
   message_writer() << "";
-  message_writer() << tr("Welcome to BITS and financial privacy. For more information see https://wownero.org");
+  message_writer() << tr("Welcome to BITS and financial privacy. For more information see https://github.com/Noahthearkbuilder/bits");
   return true;
 }
 
@@ -3380,7 +3380,7 @@ simple_wallet::simple_wallet()
   m_cmd_binder.set_handler("donate",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::donate, _1),
                            tr(USAGE_DONATE),
-                           tr("Donate <amount> to the development team (wownero.org)."));
+                           tr("Donate <amount> to the BITS development team (donation address not yet set)."));
   m_cmd_binder.set_handler("sign_transfer",
                            boost::bind(&simple_wallet::on_command, this, &simple_wallet::sign_transfer, _1),
                            tr(USAGE_SIGN_TRANSFER),
@@ -7924,7 +7924,7 @@ bool simple_wallet::donate(const std::vector<std::string> &args_)
   if (!payment_id_str.empty())
     local_args.push_back(payment_id_str);
   if (m_wallet->nettype() == cryptonote::MAINNET)
-    message_writer() << (boost::format(tr("Donating %s %s to The BITS Project (wownero.org or %s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MONERO_DONATION_ADDR).str();
+    message_writer() << (boost::format(tr("Donating %s %s to The BITS Project (%s).")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % MONERO_DONATION_ADDR).str();
   else
     message_writer() << (boost::format(tr("Donating %s %s to %s.")) % amount_str % cryptonote::get_unit(cryptonote::get_default_decimal_point()) % address_str).str();
   transfer(local_args);
